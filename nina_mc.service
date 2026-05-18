@@ -1,0 +1,18 @@
+[Unit]
+Description=NINA BBK Warnbot fuer MeshCore
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Environment=NINA_MC_MESHCORE=meshcore-cli
+Environment=NINA_MC_SERIAL=/dev/ttyACM0
+Environment=NINA_MC_LOG_FILE=/var/log/nina_mc.log
+Environment="NINA_MC_ROOM=NINA Alerts"
+ExecStart=/usr/bin/python3 /opt/nina_mc/nina_mc.py
+WorkingDirectory=/opt/nina_mc
+Restart=on-failure
+RestartSec=30
+User=nina
+
+[Install]
+WantedBy=multi-user.target

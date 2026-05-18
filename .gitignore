@@ -1,0 +1,8 @@
+__pycache__/
+*.py[cod]
+*.log
+.DS_Store
+.venv/
+.claude/
+restart-claude
+LOCAL_CONFIG.md
