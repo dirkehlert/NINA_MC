@@ -4,7 +4,7 @@ nina_mc.py - BBK NINA Warnbot fuer MeshCore
 Fragt alle 5 Minuten die BBK NINA Warn-API ab und sendet neue Warnmeldungen
 in einen MeshCore-Kanal via angeschlossenem Companion.
 
-Ueberwachte Regionen: Gifhorn (GF), Wolfsburg (WOB), Braunschweig (BS)
+Ueberwachte Regionen: Gifhorn (GF), Wolfsburg (WOB), Braunschweig (BS), Peine (PE)
 Systemd-Dienst: /etc/systemd/system/nina_mc.service
 """
 
@@ -22,6 +22,7 @@ AGS_LIST = {
     "031510000000": "gf",   # Landkreis Gifhorn
     "031030000000": "wob",  # Stadt Wolfsburg
     "031010000000": "bs",   # Stadt Braunschweig
+    "031570000000": "pe",   # Landkreis Peine
 }
 
 NINA_BASE = "https://warnung.bund.de/api31/dashboard/{}.json"
@@ -52,11 +53,15 @@ logging.basicConfig(
 def send_mesh(text):
     """Sendet eine Nachricht in den Warnkanal (Kanal 7, scope #de-mitte)."""
     text = text.lower()  # Companion unterstuetzt nur Kleinbuchstaben
-    result = subprocess.run(
-        [MESHCORE, "-s", SERIAL, "-b", BAUD, "-q",
-         "scope", SCOPE, "chan", str(CHANNEL), text],
-        capture_output=True, text=True
-    )
+    try:
+        result = subprocess.run(
+            [MESHCORE, "-s", SERIAL, "-b", BAUD, "-q",
+             "scope", SCOPE, "chan", str(CHANNEL), text],
+            capture_output=True, text=True
+        )
+    except OSError as e:
+        logging.error(f"meshcore-cli fehler: {e}")
+        return
     if result.returncode != 0:
         logging.error(f"meshcore-cli fehler: {result.stderr}")
     else:
@@ -65,11 +70,15 @@ def send_mesh(text):
 def send_room(text):
     """Sendet eine Direktnachricht an den MeshCore Room (nur fuer Fehler)."""
     text = text.lower()
-    result = subprocess.run(
-        [MESHCORE, "-s", SERIAL, "-b", BAUD, "-q",
-         "msg", ROOM, text],
-        capture_output=True, text=True
-    )
+    try:
+        result = subprocess.run(
+            [MESHCORE, "-s", SERIAL, "-b", BAUD, "-q",
+             "msg", ROOM, text],
+            capture_output=True, text=True
+        )
+    except OSError as e:
+        logging.error(f"room fehler: {e}")
+        return
     if result.returncode != 0:
         logging.error(f"room fehler: {result.stderr}")
     else:

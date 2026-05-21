@@ -19,7 +19,7 @@ einem Raspberry Pi mit angeschlossenem MeshCore Companion gedacht.
 [nina gf] alert/severe: hochwasser aller - pegel kritisch
 [nina wob] update/minor: trinkwasserwarnung wolfsburg-nord...
 [nina bs] entwarnung: gasaustritt braunschweig-suedstadt
-[nina] heartbeat: keine aktiven warnungen (gf, wob, bs)
+[nina] heartbeat: keine aktiven warnungen (gf, wob, bs, pe)
 ```
 
 Die Nachrichten werden vor dem Versand in Kleinbuchstaben umgewandelt, weil der
@@ -27,13 +27,14 @@ verwendete Companion nur Kleinbuchstaben unterstuetzt.
 
 ## Ueberwachte Regionen
 
-Die Standardkonfiguration ueberwacht drei Regionen in Niedersachsen:
+Die Standardkonfiguration ueberwacht vier Regionen in Niedersachsen:
 
 | Kuerzel | Region             | AGS          |
 |---------|--------------------|--------------|
 | gf      | Landkreis Gifhorn  | 031510000000 |
 | wob     | Stadt Wolfsburg    | 031030000000 |
 | bs      | Stadt Braunschweig | 031010000000 |
+| pe      | Landkreis Peine    | 031570000000 |
 
 Andere Regionen koennen in `AGS_LIST` in `nina_mc.py` eingetragen werden. Die
 BBK/NINA-API erwartet AGS-Codes auf Kreisebene.
