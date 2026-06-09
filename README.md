@@ -19,21 +19,40 @@ einem Raspberry Pi mit angeschlossenem MeshCore Companion gedacht.
 [nina gf] alert/severe: hochwasser aller - pegel kritisch
 [nina wob] update/minor: trinkwasserwarnung wolfsburg-nord...
 [nina bs] entwarnung: gasaustritt braunschweig-suedstadt
-[nina] heartbeat: keine aktiven warnungen (gf, wob, bs, pe)
+[nina] heartbeat: keine aktiven warnungen (gf, wob, bs, gs, pe)
 ```
 
 Die Nachrichten werden vor dem Versand in Kleinbuchstaben umgewandelt, weil der
 verwendete Companion nur Kleinbuchstaben unterstuetzt.
 
+## Channel-Routing
+
+Waehrend der Migration werden Warnungen parallel in mehrere offene MeshCore-
+Channels gesendet:
+
+| Slot | Channel       | Zweck |
+|------|---------------|-------|
+| 2    | #38ninawarn   | Neuer Sammelchannel fuer alle Warnungen |
+| 3    | #wobninawarn  | Warnungen fuer Wolfsburg |
+| 4    | #bsninawarn   | Warnungen fuer Braunschweig |
+| 5    | #gsninawarn   | Warnungen fuer Goslar |
+| 6    | #peninawarn   | Warnungen fuer Peine |
+| 7    | #gfninawarn   | Legacy-Sammelchannel und Warnungen fuer Gifhorn |
+
+Eine Peine-Warnung wird zum Beispiel an Slot 7, Slot 2 und Slot 6 gesendet.
+Eine Gifhorn-Warnung wird an Slot 7 und Slot 2 gesendet, ohne Slot 7 doppelt
+zu nutzen. Alle Sendungen verwenden den Scope `#de-mitte`.
+
 ## Ueberwachte Regionen
 
-Die Standardkonfiguration ueberwacht vier Regionen in Niedersachsen:
+Die Standardkonfiguration ueberwacht fuenf Regionen in Niedersachsen:
 
 | Kuerzel | Region             | AGS          |
 |---------|--------------------|--------------|
 | gf      | Landkreis Gifhorn  | 031510000000 |
 | wob     | Stadt Wolfsburg    | 031030000000 |
 | bs      | Stadt Braunschweig | 031010000000 |
+| gs      | Landkreis Goslar   | 031530000000 |
 | pe      | Landkreis Peine    | 031570000000 |
 
 Andere Regionen koennen in `AGS_LIST` in `nina_mc.py` eingetragen werden. Die
@@ -59,7 +78,9 @@ Umgebungsvariable ueberschrieben werden:
 | Variable | Environment | Bedeutung |
 |----------|-------------|-----------|
 | `AGS_LIST` | - | Zu ueberwachende Regionen und AGS-Codes |
-| `CHANNEL` | `NINA_MC_CHANNEL` | MeshCore-Kanalnummer fuer Warnmeldungen |
+| `LEGACY_CHANNEL` | `NINA_MC_LEGACY_CHANNEL` / `NINA_MC_CHANNEL` | Bisheriger Sammelchannel |
+| `GLOBAL_CHANNEL` | `NINA_MC_GLOBAL_CHANNEL` | Neuer Sammelchannel |
+| `REGION_CHANNELS` | - | Regionale MeshCore-Channelnummern |
 | `SCOPE` | `NINA_MC_SCOPE` | MeshCore Flood-Scope |
 | `POLL_INTERVAL` | `NINA_MC_POLL_INTERVAL` | Abfrageintervall in Sekunden |
 | `HEARTBEAT_INTERVAL` | `NINA_MC_HEARTBEAT_INTERVAL` | Heartbeat-Intervall in Sekunden |
@@ -71,7 +92,8 @@ Umgebungsvariable ueberschrieben werden:
 | `LOG_FILE` | `NINA_MC_LOG_FILE` | Logdatei |
 
 Vor dem Einsatz sollten mindestens `NINA_MC_MESHCORE`, `NINA_MC_SERIAL`,
-`NINA_MC_CHANNEL`, `NINA_MC_SCOPE`, `NINA_MC_ROOM` und `NINA_MC_LOG_FILE` an die
+`NINA_MC_LEGACY_CHANNEL`, `NINA_MC_GLOBAL_CHANNEL`, `NINA_MC_SCOPE`,
+`NINA_MC_ROOM` und `NINA_MC_LOG_FILE` an die
 eigene MeshCore-Installation angepasst werden.
 
 ## Deployment
@@ -110,10 +132,11 @@ Aufrufe werden gemockt.
 python3 -m unittest test_nina_mc -v
 ```
 
-Aktuell decken 20 Tests ab:
+Aktuell decken 25 Tests ab:
 
 - Titelkuerzung und Prefix-Bereinigung
 - Nachrichtenformatierung fuer Alert, Update und Entwarnung
+- Channel-Routing fuer Legacy-, Sammel- und Regionalchannels
 - API-Fehlerbehandlung
 - Verhinderung von Doppelmeldungen
 

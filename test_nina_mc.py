@@ -112,6 +112,9 @@ class TestFormatWarning(unittest.TestCase):
 
 class TestFetchWarnings(unittest.TestCase):
 
+    def test_landkreis_goslar_ist_konfiguriert(self):
+        self.assertEqual(nina_mc.AGS_LIST["031530000000"], "gs")
+
     @patch("nina_mc.requests.get")
     def test_gibt_liste_zurueck(self, mock_get):
         mock_get.return_value.json.return_value = [{"id": "w1"}, {"id": "w2"}]
@@ -140,6 +143,34 @@ class TestFetchWarnings(unittest.TestCase):
         nina_mc.fetch_warnings("031510000000", "gf")
         mock_room.assert_called_once()
         self.assertIn("fehler", mock_room.call_args[0][0])
+
+
+class TestChannelRouting(unittest.TestCase):
+
+    def test_pe_warnung_geht_an_legacy_global_und_region(self):
+        self.assertEqual(nina_mc.warning_channels("pe"), [7, 2, 6])
+
+    def test_gf_warnung_dedupliziert_legacy_und_region(self):
+        self.assertEqual(nina_mc.warning_channels("gf"), [7, 2])
+
+    @patch("nina_mc.send_mesh")
+    def test_send_warning_sendet_an_alle_zielchannels(self, mock_send):
+        nina_mc.send_warning("[nina pe] test", "pe")
+        self.assertEqual(
+            mock_send.call_args_list,
+            [
+                unittest.mock.call("[nina pe] test", 7),
+                unittest.mock.call("[nina pe] test", 2),
+                unittest.mock.call("[nina pe] test", 6),
+            ]
+        )
+
+    @patch("nina_mc.subprocess.run")
+    def test_send_mesh_nutzt_uebergebenen_channel(self, mock_run):
+        mock_run.return_value.returncode = 0
+        nina_mc.send_mesh("[nina pe] test", 6)
+        self.assertIn("chan", mock_run.call_args[0][0])
+        self.assertEqual(mock_run.call_args[0][0][-2], "6")
 
 
 class TestDoppelmeldungVerhindern(unittest.TestCase):

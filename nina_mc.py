@@ -4,7 +4,8 @@ nina_mc.py - BBK NINA Warnbot fuer MeshCore
 Fragt alle 5 Minuten die BBK NINA Warn-API ab und sendet neue Warnmeldungen
 in einen MeshCore-Kanal via angeschlossenem Companion.
 
-Ueberwachte Regionen: Gifhorn (GF), Wolfsburg (WOB), Braunschweig (BS), Peine (PE)
+Ueberwachte Regionen: Gifhorn (GF), Wolfsburg (WOB), Braunschweig (BS), Goslar (GS), Peine (PE)
+Migration: alle Warnungen gehen weiter an #gfninawarn plus neue Sammel-/Regionalchannels.
 Systemd-Dienst: /etc/systemd/system/nina_mc.service
 """
 
@@ -22,12 +23,21 @@ AGS_LIST = {
     "031510000000": "gf",   # Landkreis Gifhorn
     "031030000000": "wob",  # Stadt Wolfsburg
     "031010000000": "bs",   # Stadt Braunschweig
+    "031530000000": "gs",   # Landkreis Goslar
     "031570000000": "pe",   # Landkreis Peine
 }
 
 NINA_BASE = "https://warnung.bund.de/api31/dashboard/{}.json"
 
-CHANNEL = int(os.getenv("NINA_MC_CHANNEL", "7"))
+LEGACY_CHANNEL = int(os.getenv("NINA_MC_LEGACY_CHANNEL", os.getenv("NINA_MC_CHANNEL", "7")))
+GLOBAL_CHANNEL = int(os.getenv("NINA_MC_GLOBAL_CHANNEL", "2"))
+REGION_CHANNELS = {
+    "gf": 7,   # #gfninawarn, in der Migration auch Legacy-Sammelchannel
+    "wob": 3,  # #wobninawarn
+    "bs": 4,   # #bsninawarn
+    "gs": 5,   # #gsninawarn
+    "pe": 6,   # #peninawarn
+}
 SCOPE = os.getenv("NINA_MC_SCOPE", "#de-mitte")
 POLL_INTERVAL = int(os.getenv("NINA_MC_POLL_INTERVAL", "300"))
 HEARTBEAT_INTERVAL = int(os.getenv("NINA_MC_HEARTBEAT_INTERVAL", "86400"))
@@ -50,13 +60,13 @@ logging.basicConfig(
     ]
 )
 
-def send_mesh(text):
-    """Sendet eine Nachricht in den Warnkanal (Kanal 7, scope #de-mitte)."""
+def send_mesh(text, channel=LEGACY_CHANNEL):
+    """Sendet eine Nachricht in einen MeshCore-Channel mit scope #de-mitte."""
     text = text.lower()  # Companion unterstuetzt nur Kleinbuchstaben
     try:
         result = subprocess.run(
             [MESHCORE, "-s", SERIAL, "-b", BAUD, "-q",
-             "scope", SCOPE, "chan", str(CHANNEL), text],
+             "scope", SCOPE, "chan", str(channel), text],
             capture_output=True, text=True
         )
     except OSError as e:
@@ -65,7 +75,22 @@ def send_mesh(text):
     if result.returncode != 0:
         logging.error(f"meshcore-cli fehler: {result.stderr}")
     else:
-        logging.info(f"gesendet: {text}")
+        logging.info(f"gesendet chan {channel}: {text}")
+
+def warning_channels(prefix):
+    """Zielchannels fuer eine Warnung: Legacy, neuer Sammelchannel, Region."""
+    channels = [LEGACY_CHANNEL, GLOBAL_CHANNEL, REGION_CHANNELS[prefix]]
+    return list(dict.fromkeys(channels))
+
+def send_warning(text, prefix):
+    """Sendet eine Warnung in alle Migrations-Zielchannels."""
+    for channel in warning_channels(prefix):
+        send_mesh(text, channel)
+
+def send_global(text):
+    """Sendet Bot-Statusmeldungen in Legacy- und neuen Sammelchannel."""
+    for channel in dict.fromkeys([LEGACY_CHANNEL, GLOBAL_CHANNEL]):
+        send_mesh(text, channel)
 
 def send_room(text):
     """Sendet eine Direktnachricht an den MeshCore Room (nur fuer Fehler)."""
@@ -136,7 +161,7 @@ def fetch_warnings(ags, prefix):
 def main():
     logging.info("nina-mc bot gestartet")
     regions = ", ".join(AGS_LIST.values())
-    send_mesh(f"[nina] bot gestartet - bbk warnungen {regions}")
+    send_global(f"[nina] bot gestartet - bbk warnungen {regions}")
 
     # Bereits gemeldete Warnungs-IDs pro Region (verhindert Doppelmeldungen)
     seen_ids = {ags: set() for ags in AGS_LIST}
@@ -155,7 +180,7 @@ def main():
                 # Neue Warnungen senden
                 for w in warnings:
                     if w["id"] not in seen_ids[ags]:
-                        send_mesh(format_warning(w, prefix))
+                        send_warning(format_warning(w, prefix), prefix)
 
                 # Aufgehobene Warnungen nur loggen (keine Funkmeldung)
                 for wid in seen_ids[ags] - current_ids:
@@ -169,9 +194,9 @@ def main():
         if (now - last_heartbeat).total_seconds() >= HEARTBEAT_INTERVAL:
             regions = ", ".join(AGS_LIST.values())
             if total == 0:
-                send_mesh(f"[nina] heartbeat: keine aktiven warnungen ({regions})")
+                send_global(f"[nina] heartbeat: keine aktiven warnungen ({regions})")
             else:
-                send_mesh(f"[nina] heartbeat: {total} aktive warnung(en) ({regions})")
+                send_global(f"[nina] heartbeat: {total} aktive warnung(en) ({regions})")
             last_heartbeat = now
 
         time.sleep(POLL_INTERVAL)
